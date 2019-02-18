@@ -25,9 +25,15 @@ import android.graphics.Paint.Join;
 import android.graphics.Paint.Style;
 import android.graphics.RectF;
 import android.text.TextUtils;
+import android.text.style.TtsSpan;
 import android.util.Pair;
 import android.util.TypedValue;
 import android.widget.Toast;
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -35,6 +41,8 @@ import org.tensorflow.demo.Classifier.Recognition;
 import org.tensorflow.demo.env.BorderedText;
 import org.tensorflow.demo.env.ImageUtils;
 import org.tensorflow.demo.env.Logger;
+
+import timber.log.Timber;
 
 /**
  * A tracker wrapping ObjectTracker that also handles non-max suppression and matching existing
@@ -53,10 +61,10 @@ public class MultiBoxTracker {
 
   // Allow replacement of the tracked box with new results if
   // correlation has dropped below this level.
-  private static final float MARGINAL_CORRELATION = 0.75f;
+  private static final float MARGINAL_CORRELATION = 0.5f;
 
   // Consider object to be lost if correlation falls below this threshold.
-  private static final float MIN_CORRELATION = 0.3f;
+  private static final float MIN_CORRELATION = 0.12f;
 
   /*MmM remove RED color from specter. RED color is reserved for dangerous objects.*/
   private static final int[] COLORS = {
@@ -78,6 +86,7 @@ public class MultiBoxTracker {
     float detectionConfidence;
     int color;
     String title;
+    boolean isTraffic;
   }
 
   private final List<TrackedRecognition> trackedObjects = new LinkedList<TrackedRecognition>();
@@ -174,6 +183,7 @@ public class MultiBoxTracker {
             (int) (multiplier * (rotated ? frameWidth : frameHeight)),
             sensorOrientation,
             false);
+    Timber.i("Draw objects: "+trackedObjects.size());
     for (final TrackedRecognition recognition : trackedObjects) {
       final RectF trackedPos =
           (objectTracker != null)
@@ -183,12 +193,22 @@ public class MultiBoxTracker {
       getFrameToCanvasMatrix().mapRect(trackedPos);
       boxPaint.setColor(recognition.color);
       boxPaint.setTextSize(120);
+      int alpha = (int) (recognition.trackedObject.getCollerationIndex()*255);
+      boxPaint.setAlpha(alpha);
+
+      /*MmM*/
 
       final float cornerSize = Math.min(trackedPos.width(), trackedPos.height()) / 8.0f;
       canvas.drawRoundRect(trackedPos, cornerSize, cornerSize, boxPaint);
-      /*MmM RED represent dangerous objects!*/
+
+      Timber.i("Draw object: "+recognition.title+" id: "+recognition.trackedObject.getMyId());
+        /*MmM RED represent dangerous objects!*/
       if(recognition.color == Color.RED){
           canvas.drawText("Dangerous!!!",(trackedPos.left+trackedPos.right)/2 - 150,(trackedPos.top+trackedPos.bottom)/2,boxPaint);
+      }
+
+      if(recognition.trackedObject.isBigger() || !recognition.isTraffic){
+        canvas.drawText("Watch out",(trackedPos.left+trackedPos.right)/2 - 150,(trackedPos.top+trackedPos.bottom)/2,boxPaint);
       }
 
       final String labelString =
@@ -197,6 +217,21 @@ public class MultiBoxTracker {
               : String.format("%.2f", recognition.detectionConfidence);
       borderedText.drawText(canvas, trackedPos.left + cornerSize, trackedPos.bottom, labelString);
     }
+      DateFormat df = new SimpleDateFormat("HH : mm : ss");
+      Date currentTime = Calendar.getInstance().getTime();
+      String reportDate = df.format(currentTime);
+      Paint paint = new Paint();
+
+      paint.setStyle(Style.STROKE);
+      paint.setStrokeWidth(12.0f);
+      paint.setStrokeCap(Cap.ROUND);
+      paint.setStrokeJoin(Join.ROUND);
+      paint.setStrokeMiter(100);
+
+      paint.setColor(Color.WHITE);
+      paint.setTextSize(80);
+
+      canvas.drawText(reportDate,canvas.getWidth()/2,80,paint);
   }
 
   private boolean initialized = false;
@@ -239,12 +274,15 @@ public class MultiBoxTracker {
     for (final TrackedRecognition recognition : copyList) {
       final ObjectTracker.TrackedObject trackedObject = recognition.trackedObject;
       final float correlation = trackedObject.getCurrentCorrelation();
-      if (correlation < MIN_CORRELATION) {
-        logger.v("Removing tracked object %s because NCC is %.2f", trackedObject, correlation);
-        trackedObject.stopTracking();
-        trackedObjects.remove(recognition);
+      if (correlation < MIN_CORRELATION ) {
+        if(!trackedObject.CheckNoColleration())
+        {
+          logger.v("Removing tracked object %s because NCC is %.2f", trackedObject, correlation);
+          trackedObject.stopTracking();
+          trackedObjects.remove(recognition);
 
-        availableColors.add(recognition.color);
+          availableColors.add(recognition.color);
+        }
       }
     }
   }
@@ -291,6 +329,7 @@ public class MultiBoxTracker {
         trackedRecognition.location = new RectF(potential.second.getLocation());
         trackedRecognition.trackedObject = null;
         trackedRecognition.title = potential.second.getTitle();
+        trackedRecognition.isTraffic = potential.second.isTrafficSign();
         /*MmM if object is dangerous, set RED color!*/
         if(potential.second.isDangerous()){
             trackedRecognition.color = Color.RED;
@@ -325,6 +364,7 @@ public class MultiBoxTracker {
 
     if (potentialCorrelation < MARGINAL_CORRELATION) {
       logger.v("Correlation too low to begin tracking %s.", potentialObject);
+      Timber.i("Correlation too low to begin tracking %s.", potentialObject);
       potentialObject.stopTracking();
       return;
     }

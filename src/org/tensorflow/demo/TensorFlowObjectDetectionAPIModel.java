@@ -193,7 +193,7 @@ public class TensorFlowObjectDetectionAPIModel implements Classifier {
 
         /*MmM filter objects by class type*/
         String label = labels.get((int) outputClasses[i]);
-        if(label.equals("car") || label.equals("bus") || label.equals("truck") ) {
+        if(label.equals("car") || label.equals("bus") || label.equals("truck") || label.equals("person") ) {
             /*MmM mark recognition position; Is it dangerous?*/
             float mid_x = (outputLocations[4 * i + 1] + outputLocations[4 * i + 3])/2;
             //float mid_y = (outputLocations[4 * i ] + outputLocations[4 * i + 2])/2;

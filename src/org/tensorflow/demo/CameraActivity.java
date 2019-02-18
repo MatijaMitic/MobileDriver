@@ -45,6 +45,8 @@ import org.tensorflow.demo.env.ImageUtils;
 import org.tensorflow.demo.env.Logger;
 import org.tensorflow.demo.R; // Explicit import needed for internal Google builds.
 
+import timber.log.Timber;
+
 public abstract class CameraActivity extends Activity
     implements OnImageAvailableListener, Camera.PreviewCallback {
   private static final Logger LOGGER = new Logger();
@@ -73,6 +75,7 @@ public abstract class CameraActivity extends Activity
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
     LOGGER.d("onCreate " + this);
+    Timber.plant(new FileLoggingTree(getApplicationContext()));
     super.onCreate(null);
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 

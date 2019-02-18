@@ -33,6 +33,10 @@ import android.view.Display;
 import android.view.Surface;
 import android.widget.Toast;
 import java.io.IOException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Vector;
@@ -42,6 +46,8 @@ import org.tensorflow.demo.env.ImageUtils;
 import org.tensorflow.demo.env.Logger;
 import org.tensorflow.demo.tracking.MultiBoxTracker;
 import org.tensorflow.demo.R; // Explicit import needed for internal Google builds.
+
+import timber.log.Timber;
 
 /**
  * An activity that uses a TensorFlowMultiBoxDetector and ObjectTracker to detect and then track
@@ -65,6 +71,10 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   //private static final String TF_OD_API_MODEL_FILE = "file:///android_asset/ssd_mobilenet_v1_android_export.pb";
   private static final String TF_OD_API_MODEL_FILE = "file:///android_asset/ssd_mobilenet_v2.pb";
   private static final String TF_OD_API_LABELS_FILE = "file:///android_asset/coco_labels_list.txt";
+
+  /*MmM*/
+  private static final String SIGN_TF_OD_API_MODEL_FILE = "file:///android_asset/frozen_sign_inference_graph.pb";
+  private static final String SIGN_TF_OD_API_LABELS_FILE = "file:///android_asset/sign_labels_list.txt";
 
   // Configuration values for tiny-yolo-voc. Note that the graph is not included with TensorFlow and
   // must be manually placed in the assets/ directory by the user.
@@ -100,6 +110,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   private Integer sensorOrientation;
 
   private Classifier detector;
+  private Classifier sign_detector;
 
   private TensorFlowLaneMatcher laneMatcher;
 
@@ -161,7 +172,11 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
         detector = TensorFlowObjectDetectionAPIModel.create(
             getAssets(), TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE);
         cropSize = TF_OD_API_INPUT_SIZE;
+
           laneMatcher = new TensorFlowLaneMatcher(getAssets());
+
+        sign_detector = TensorFlowSignDetectionAPIModel.create(getAssets(),SIGN_TF_OD_API_MODEL_FILE,SIGN_TF_OD_API_LABELS_FILE,TF_OD_API_INPUT_SIZE);
+
       } catch (final IOException e) {
         LOGGER.e("Exception initializing classifier!", e);
         Toast toast =
@@ -200,6 +215,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
             if(laneBitmap != null) {
               canvas.drawBitmap(laneBitmap, 0, 0, null);
             }
+
             tracker.draw(canvas);
             if (isDebug()) {
               tracker.drawDebug(canvas);
@@ -313,10 +329,15 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
             LOGGER.i("Running detection on image " + currTimestamp);
             final long startTime = SystemClock.uptimeMillis();
             /*MmM if enabled, run lane detection on croppedBitmap*/
+            int traffic_obj_size = 0;
+            int traffic_sign_size = 0;
 
-            LOGGER.i("Recognize image in DetectorActivity");
+
             final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
+
             lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
+
+            final List<Classifier.Recognition> sign_results = sign_detector.recognizeImage(croppedBitmap);
 
             //laneBitmap = laneMatcher.detectLane(rgbFrameBitmap);
 
@@ -351,8 +372,8 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
             for (final Classifier.Recognition result : results) {
               final RectF location = result.getLocation();
-              if (location != null && result.getConfidence() >= minimumConfidence) {
-
+              if (location != null && result.getConfidence() >= 0.4f) {
+                traffic_obj_size++;
                 if(result.isDangerous()){
                   canvas.drawRect(location, dangerousPaint);
                 }
@@ -364,6 +385,21 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                   mappedRecognitions.add(result);
               }
             }
+
+            for (final Classifier.Recognition result : sign_results) {
+              final RectF location = result.getLocation();
+              if (location != null && result.getConfidence() >= 0.2f) {
+                traffic_sign_size++;
+                canvas.drawRect(location, paint);
+
+                cropToFrameTransform.mapRect(location);
+                result.setTrafficSignFlag();
+                result.setLocation(location);
+                mappedRecognitions.add(result);
+              }
+            }
+
+            Timber.i("Recognize image process in DetectorActivity; Number of traffic objects: "+traffic_obj_size+"; Number of traffic sign: "+traffic_sign_size+"\n");
 
             tracker.trackResults(mappedRecognitions, luminanceCopy, currTimestamp);
             trackingOverlay.postInvalidate();

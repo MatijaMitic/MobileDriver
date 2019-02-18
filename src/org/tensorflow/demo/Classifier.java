@@ -48,6 +48,8 @@ public interface Classifier {
 
       private boolean isDangerous;
 
+      private boolean isTrafficSign = false;
+
     public Recognition(
         final String id, final String title, final Float confidence, final RectF location) {
       this.id = id;
@@ -83,6 +85,14 @@ public interface Classifier {
 
     public boolean isDangerous() {
           return isDangerous;
+      }
+
+      public boolean isTrafficSign() {
+          return isTrafficSign;
+      }
+
+      public void setTrafficSignFlag() {
+          this.isTrafficSign = true;
       }
 
     public void setLocation(RectF location) {

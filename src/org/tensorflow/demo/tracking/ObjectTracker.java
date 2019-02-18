@@ -492,9 +492,13 @@ public class ObjectTracker {
     private long lastExternalPositionTime;
 
     private RectF lastTrackedPosition;
+    private RectF prevTrackedPosition;
     private boolean visibleInLastFrame;
 
     private boolean isDead;
+    private int maxCollerationError = 10;
+    private double collerationIndex = 1.0;
+    private int counter=0;
 
     TrackedObject(final RectF position, final long timestamp, final byte[] data) {
       isDead = false;
@@ -510,14 +514,58 @@ public class ObjectTracker {
       }
     }
 
+    public double getCollerationIndex(){
+      return collerationIndex;
+    }
+
+    public boolean CheckNoColleration(){
+      if(maxCollerationError>0){
+        maxCollerationError--;
+        collerationIndex = maxCollerationError / 10.0;
+        return true;
+      }
+      return false;
+    }
+
+    public boolean isBigger(){
+      if(lastTrackedPosition==null || prevTrackedPosition==null ) {
+        return false;
+      }
+      else if((lastTrackedPosition.width()*lastTrackedPosition.height() <= prevTrackedPosition.width()*prevTrackedPosition.height()))
+      {
+        if(counter>0) {
+          counter--;
+          return true;
+        }
+        return false;
+      }
+      else {
+        if((prevTrackedPosition.width()*prevTrackedPosition.height() / (lastTrackedPosition.width()*lastTrackedPosition.height())) < 0.97) {
+          counter++;
+          return true;
+        }
+        else {
+          if(counter>0) {
+            counter--;
+            return true;
+          }
+          return false;
+           }
+      }
+    }
+
+    public String getMyId(){
+      return id;
+    }
+
     public void stopTracking() {
-      checkValidObject();
+      /*checkValidObject();
 
       synchronized (ObjectTracker.this) {
         isDead = true;
         forgetNative(id);
         trackedObjects.remove(id);
-      }
+      }*/
     }
 
     public float getCurrentCorrelation() {
@@ -567,6 +615,11 @@ public class ObjectTracker {
 
       final float[] delta = new float[4];
       getTrackedPositionNative(id, delta);
+
+      if(lastTrackedPosition!=null){
+        prevTrackedPosition = lastTrackedPosition;
+      }
+
       lastTrackedPosition = new RectF(delta[0], delta[1], delta[2], delta[3]);
 
       visibleInLastFrame = isObjectVisible(id);
