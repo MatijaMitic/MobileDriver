@@ -202,13 +202,14 @@ public class MultiBoxTracker {
       canvas.drawRoundRect(trackedPos, cornerSize, cornerSize, boxPaint);
 
       Timber.i("Draw object: "+recognition.title+" id: "+recognition.trackedObject.getMyId());
+      boxPaint.setTextSize((trackedPos.bottom-trackedPos.top)/4);
         /*MmM RED represent dangerous objects!*/
       if(recognition.color == Color.RED){
-          canvas.drawText("Dangerous!!!",(trackedPos.left+trackedPos.right)/2 - 150,(trackedPos.top+trackedPos.bottom)/2,boxPaint);
-      }
-
-      if(recognition.trackedObject.isBigger() || !recognition.isTraffic){
-        canvas.drawText("Watch out",(trackedPos.left+trackedPos.right)/2 - 150,(trackedPos.top+trackedPos.bottom)/2,boxPaint);
+          //canvas.drawText("D",(trackedPos.left+trackedPos.right)/2 - 150,(trackedPos.top+trackedPos.bottom)/2,boxPaint);
+          canvas.drawText("D",trackedPos.left+10,trackedPos.top+boxPaint.getTextSize(),boxPaint);
+      } else if(recognition.trackedObject.isBigger() && !recognition.isTraffic){
+        //canvas.drawText("Watch out",(trackedPos.left+trackedPos.right)/2 - 150,(trackedPos.top+trackedPos.bottom)/2,boxPaint);
+        canvas.drawText("W",trackedPos.left+10,trackedPos.top+boxPaint.getTextSize(),boxPaint);
       }
 
       final String labelString =
